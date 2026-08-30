@@ -21,11 +21,13 @@ class MainActivity : AppCompatActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
-    // Lista de dominios de publicidad (AdBlock nativo)
+    // Lista extendida de dominios de publicidad (AdBlock nativo)
     private val adDomains = setOf(
         "popads.net", "popcash.net", "exoclick.com", "juicyads.com",
         "adsterra.com", "propellerads.com", "doubleclick.net",
-        "googlesyndication.com", "bet365", "1xbet", "ad-delivery"
+        "googlesyndication.com", "bet365", "1xbet", "ad-delivery",
+        "popunder", "redirect", "adserver", "onclickads", "bet",
+        "adservice", "yandex", "histats", "traffaus"
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
 
-        // Bloqueo de ventanas emergentes (Pop-ups)
+        // Desactivar apertura automática de pop-ups y múltiples ventanas
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
@@ -66,13 +68,28 @@ class MainActivity : AppCompatActivity() {
                 return super.shouldInterceptRequest(view, request)
             }
 
-            // Bloquear redirecciones maliciosas/publicitarias
+            // Bloquear redirecciones maliciosas/publicitarias y forzar permanencia en el sitio
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                if (isAdUrl(url)) {
-                    return true // Interceptar y no cargar
+                
+                // Si la URL es de publicidad o NO pertenece al sitio principal, se bloquea
+                if (isAdUrl(url) || (!url.contains("123av.com") && !url.startsWith("blob:"))) {
+                    return true // Interceptar y cancelar navegación
                 }
                 return false
+            }
+
+            // Inyectar script al terminar de cargar la página para anular Pop-ups al hacer clic en los videos
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                val js = """
+                    javascript:(function() {
+                        window.open = function() { return null; };
+                        var badElements = document.querySelectorAll('iframe[src*="ad"], div[id*="pop"], div[class*="ad"]');
+                        for (var i = 0; i < badElements.length; i++) { badElements[i].remove(); }
+                    })()
+                """.trimIndent()
+                view?.loadUrl(js)
             }
         }
 
@@ -117,8 +134,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun isAdUrl(url: String): Boolean {
         return try {
-            val host = URI(url).host?.lowercase() ?: return false
-            adDomains.any { adDomain -> host.contains(adDomain) }
+            val lowerUrl = url.lowercase()
+            adDomains.any { adDomain -> lowerUrl.contains(adDomain) }
         } catch (e: Exception) {
             false
         }
