@@ -10,8 +10,6 @@
         android:allowBackup="true"
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
         android:label="123av Viewer"
         android:theme="@style/Theme.AppCompat.NoActionBar">
         
