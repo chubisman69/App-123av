@@ -1,8 +1,13 @@
-package com.ejemplo.app123av // (Ojo: asegúrate de que esto coincida con tu package original)
+package com.ejemplo.app123av
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -10,9 +15,9 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
-import java.net.URI
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,7 +26,7 @@ class MainActivity : AppCompatActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
-    // Lista agresiva con redes de adultos, pop-ups y redirecciones nativas de este tipo de webs
+    // Lista de dominios publicitarios y redirecciones
     private val adDomains = setOf(
         "popads.net", "popcash.net", "exoclick.com", "juicyads.com",
         "adsterra.com", "propellerads.com", "doubleclick.net", "googlesyndication.com", 
@@ -46,17 +51,40 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
-        settings.mediaPlaybackRequiresUserGesture = false // Permite que el reproductor inicie sin problemas
+        settings.mediaPlaybackRequiresUserGesture = false // Permite que inicie el video
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
 
-        // Bloqueo estricto del sistema contra pestañas múltiples
+        // Desactivar apertura automática de pop-ups y múltiples ventanas
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.setSupportMultipleWindows(false)
 
+        // --- SISTEMA DE DESCARGA DIRECTA DE VIDEOS ---
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
+            try {
+                val request = DownloadManager.Request(Uri.parse(url))
+                
+                val fileName = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                request.setMimeType(mimeType)
+                request.addRequestHeader("User-Agent", userAgent)
+                request.setTitle(fileName)
+                request.setDescription("Descargando video...")
+                
+                // Muestra la notificación de descarga y guarda en la carpeta pública
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+
+                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                dm.enqueue(request)
+
+                Toast.makeText(applicationContext, "Iniciando descarga: $fileName", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(applicationContext, "Error al iniciar la descarga", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         webView.webViewClient = object : WebViewClient() {
-            
-            // Interceptar peticiones para que ni siquiera descargue la publicidad
+            // Cancelar peticiones a dominios publicitarios antes de cargarlos
             override fun shouldInterceptRequest(
                 view: WebView?,
                 request: WebResourceRequest?
@@ -68,19 +96,15 @@ class MainActivity : AppCompatActivity() {
                 return super.shouldInterceptRequest(view, request)
             }
 
-            // AQUI ESTÁ LA MAGIA: Permitir el reproductor, pero bloquear redirecciones
+            // Permitir que cargue el reproductor, pero bloquear redirecciones externas del marco principal
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                val isMainFrame = request.isForMainFrame // Detecta si es la página entera o solo el marco del video
+                val isMainFrame = request.isForMainFrame
                 
-                // Si la URL es basura o publicidad reconocida, bloquearla siempre
                 if (isAdUrl(url)) {
                     return true 
                 }
 
-                // Si la PÁGINA PRINCIPAL intenta llevarte fuera de 123av.com, cancela el viaje.
-                // Como "isForMainFrame" es verdadero solo en la pestaña, los "iframes" (reproductores) 
-                // sí podrán cargar desde cualquier servidor libremente.
                 if (isMainFrame && !url.contains("123av") && !url.startsWith("blob:")) {
                     return true 
                 }
@@ -88,15 +112,12 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
 
-            // Inyectar JavaScript especializado en romper "Capas invisibles" (Clickjacking)
+            // Script inyectado para destruir capas transparentes de publicidad y anular pop-ups
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 val js = """
                     javascript:(function() {
-                        // Desactiva abrir nuevas ventanas
                         window.open = function() { return null; };
-                        
-                        // Busca capas invisibles superpuestas de gran tamaño y desactiva que se puedan clickear
                         var divs = document.getElementsByTagName('div');
                         for (var i = 0; i < divs.length; i++) {
                             var style = window.getComputedStyle(divs[i]);
@@ -111,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            // Pantalla Completa
+            // Manejo de Reproducción en Pantalla Completa
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                 if (customView != null) {
                     onHideCustomView()
@@ -128,6 +149,7 @@ class MainActivity : AppCompatActivity() {
                 webView.visibility = View.GONE
                 customViewCallback = callback
                 
+                // Ocultar barra de estado para modo inmersivo
                 window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_FULLSCREEN
                         or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                         or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
@@ -155,6 +177,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Comportamiento del botón de regresar del teléfono
     override fun onBackPressed() {
         if (customView != null) {
             webView.webChromeClient?.onHideCustomView()
