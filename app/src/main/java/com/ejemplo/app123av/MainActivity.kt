@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
 
         setupWebView()
-        webView.loadUrl("https://123av.com")
+        webView.loadUrl("https://www.pornhub.com")
     }
 
     private fun setupWebView() {
@@ -88,7 +88,7 @@ class MainActivity : AppCompatActivity() {
                     return true
                 }
 
-                if (isMainFrame && !url.contains("123av") && !url.startsWith("blob:")) {
+                if (isMainFrame && !url.contains("pornhub") && !url.startsWith("blob:")) {
                     return true
                 }
 
