@@ -10,7 +10,7 @@
         android:allowBackup="true"
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true"
-        android:label="123av Viewer"
+        android:label="xd"
         android:theme="@style/Theme.AppCompat.NoActionBar">
         
         <activity
