@@ -1,5 +1,6 @@
 package com.ejemplo.appxd
 
+import com.ejemplo.appxd.R  // <--- Este import soluciona el error de los recursos (R)
 import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
